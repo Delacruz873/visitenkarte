@@ -26,7 +26,7 @@
   </div>
 
   <div class="card" id="card">
-    <div><div class="name" id="cName"></div><div class="role" id="cRole"></div></div>
+    <div class="top"><div><div class="name" id="cName"></div><div class="role" id="cRole"></div></div><img class="avatar" id="cFoto" alt="Foto" hidden></div>
     <div></div>
     <div class="foot"><div class="contact" id="cContact"></div><div class="company" id="cCompany"></div></div>
   </div>
@@ -74,6 +74,12 @@
     <details id="editBox">
       <summary id="editTitle">Daten bearbeiten</summary>
       <div style="display:grid;gap:14px">
+        <div class="photoRow">
+          <img id="fotoPrev" alt="" hidden>
+          <label class="filebtn" for="fotoIn"><span id="fotoLabel">Foto wählen</span><input id="fotoIn" type="file" accept="image/*"></label>
+          <button type="button" id="fotoDel" hidden>Foto entfernen</button>
+        </div>
+        <p class="hint">Das Foto erscheint auf deiner Karte und in der Kontaktdatei, die du teilst. Im QR-Code und im NFC-Link ist es nicht enthalten.</p>
         <div class="fields">
           <label>Vorname<input id="vorname"></label>
           <label>Nachname<input id="nachname"></label>
@@ -107,12 +113,12 @@
 (function(){
   var KEY='visitenkarte-v1';
   var $=function(id){return document.getElementById(id)};
-  var data={business:{},privat:{}}, cur='business', dirty=false;
+  var data={business:{},privat:{}}, cur='business', dirty=false, foto='';
 
   try{var s=localStorage.getItem(KEY);if(s){var p=JSON.parse(s);data={business:p.business||{},privat:p.privat||{}};cur=p.cur==='privat'?'privat':'business'}}catch(e){}
   function persist(){try{localStorage.setItem(KEY,JSON.stringify({business:data.business,privat:data.privat,cur:cur}));return true}catch(e){return false}}
-  function readForm(){var d={};VC.IDS.forEach(function(k){d[k]=$(k).value.trim()});return d}
-  function fillForm(d){VC.IDS.forEach(function(k){$(k).value=(d&&d[k])||''})}
+  function readForm(){var d={};VC.IDS.forEach(function(k){d[k]=$(k).value.trim()});if(foto)d.foto=foto;return d}
+  function fillForm(d){VC.IDS.forEach(function(k){$(k).value=(d&&d[k])||''});foto=(d&&d.foto)||'';$('fotoIn').value=''}
   function setStatus(t,ok){$('status').textContent=t;$('status').className='status'+(ok?' ok':'')}
   function current(){return dirty?readForm():(data[cur]||{})}
 
@@ -130,10 +136,13 @@
     $('cName').textContent=VC.fullName(d)||'Dein Name';
     $('cRole').textContent=d.titel||'';
     $('cCompany').textContent=d.firma||'';
+    $('cFoto').hidden=!d.foto;if(d.foto)$('cFoto').src=d.foto;
+    $('fotoPrev').hidden=!d.foto;if(d.foto)$('fotoPrev').src=d.foto;
+    $('fotoDel').hidden=!d.foto;$('fotoLabel').textContent=d.foto?'Foto ändern':'Foto wählen';
     var c=$('cContact');c.textContent='';
     [['T',d.tel],['M',d.mobil],['@',d.email],['W',(d.web||'').replace(/^https?:\/\//,'')],['A',[d.strasse,d.ort].filter(Boolean).join(', ')]]
       .forEach(function(x){if(!x[1])return;var sp=document.createElement('span'),b=document.createElement('b');b.textContent=x[0];sp.append(b,x[1]);c.append(sp)});
-    var ok=VC.has(d);
+    var ok=VC.has(d)||!!d.foto;
     $('empty').hidden=ok;$('filled').hidden=!ok;
     if(!ok){$('editBox').open=true;return}
     try{$('qr').innerHTML=VC.qrSvg(VC.vcard(d,cur))}catch(e){$('qr').textContent='Zu viele Daten für einen QR-Code.'}
@@ -153,6 +162,18 @@
     if(persist()){setStatus('Gespeichert',true);$('editBox').open=false}
     else setStatus('Speichern nicht möglich (privater Modus?)')});
 
+  // Foto: quadratisch zuschneiden und auf 320 px verkleinern, bleibt nur auf dem Gerät
+  $('fotoIn').addEventListener('change',function(){
+    var f=this.files&&this.files[0];if(!f)return;
+    var url=URL.createObjectURL(f), img=new Image();
+    img.onload=function(){
+      var s=Math.min(img.naturalWidth,img.naturalHeight), c=document.createElement('canvas');c.width=c.height=320;
+      c.getContext('2d').drawImage(img,(img.naturalWidth-s)/2,(img.naturalHeight-s)/2,s,s,0,0,320,320);
+      URL.revokeObjectURL(url);foto=c.toDataURL('image/jpeg',0.82);dirty=true;render();setStatus('Nicht gespeichert')};
+    img.onerror=function(){URL.revokeObjectURL(url);setStatus('Dieses Bild kann nicht gelesen werden')};
+    img.src=url});
+  $('fotoDel').addEventListener('click',function(){foto='';$('fotoIn').value='';dirty=true;render();setStatus('Nicht gespeichert')});
+
   function copyBtn(btn,getText,label){btn.addEventListener('click',function(){
     var done=function(){btn.textContent='Kopiert';setTimeout(function(){btn.textContent=label},1800)};
     var fail=function(){btn.textContent='Kopieren nicht möglich'};
@@ -161,7 +182,7 @@
   copyBtn($('copyLink'),function(){return $('link').textContent},'Link kopieren');
 
   $('shareBtn').addEventListener('click',function(){
-    var d=current(), v=VC.vcard(d,cur), name=VC.fileName(d);
+    var d=current(), v=VC.vcard(d,cur,true), name=VC.fileName(d);
     var file;try{file=new File([v],name,{type:'text/vcard'})}catch(e){}
     if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
       navigator.share({files:[file]}).catch(function(){});return}

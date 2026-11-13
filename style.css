@@ -37,6 +37,12 @@ a.wa{background:var(--wa);border-color:var(--wa);color:#fff}
 .card{aspect-ratio:85/55;max-width:100%;background:var(--card);color:var(--card-fg);border-radius:12px;padding:6% 7%;
   display:grid;grid-template-rows:auto 1fr auto;box-shadow:0 10px 30px -12px rgba(10,25,40,.45);overflow:hidden;min-width:0}
 .card.privat{background:var(--card2)}
+.card .top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}
+.avatar{width:clamp(52px,17vw,76px);aspect-ratio:1;border-radius:50%;object-fit:cover;border:2px solid var(--card-muted);display:block}
+.photoRow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.photoRow img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)}
+.filebtn{position:relative;overflow:hidden;display:inline-block;font-weight:600;font-size:15px;border-radius:7px;padding:11px 14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);text-transform:none;letter-spacing:0;cursor:pointer}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
 .card .name{font-family:var(--f-display);font-weight:600;font-size:clamp(1.1rem,5vw,1.5rem);line-height:1.2;overflow-wrap:anywhere}
 .card .role{color:var(--card-muted);font-size:.9rem;margin-top:2px;overflow-wrap:anywhere}
 .card .foot{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end}

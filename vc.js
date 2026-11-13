@@ -8,7 +8,10 @@ var VC = (function () {
   function has(d) { return IDS.some(function (k) { return d && d[k]; }); }
   function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1'); }
 
-  function vcard(d, kind) {
+  function fold(line) { var out = [], i = 0; while (i < line.length) { out.push((i ? ' ' : '') + line.substr(i, 74)); i += 74; } return out.join('\r\n'); }
+
+  // withPhoto: Foto einbetten (nur für die Kontaktdatei, für den QR-Code wäre es zu groß)
+  function vcard(d, kind, withPhoto) {
     var T = kind === 'privat' ? 'HOME' : 'WORK';
     var L = ['BEGIN:VCARD', 'VERSION:3.0'];
     L.push('N:' + esc(d.nachname || '') + ';' + esc(d.vorname || '') + ';;;');
@@ -24,6 +27,7 @@ var VC = (function () {
       L.push('ADR;TYPE=' + T + ':;;' + esc(d.strasse || '') + ';' + esc(m ? m[2] : o) + ';;' + esc(m ? m[1] : '') + ';');
     }
     if (d.notiz) L.push('NOTE:' + esc(d.notiz));
+    if (withPhoto && d.foto) { var b = String(d.foto).split(',')[1]; if (b) L.push(fold('PHOTO;ENCODING=b;TYPE=JPEG:' + b)); }
     L.push('END:VCARD');
     return L.join('\r\n') + '\r\n';
   }
