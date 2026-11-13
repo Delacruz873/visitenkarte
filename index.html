@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Visitenkarte</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Visitenkarte">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eef1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f151b" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="row" style="justify-content:space-between"><h1>Meine Visitenkarte</h1><span class="status" id="status" role="status"></span></div>
+
+  <div class="seg" role="group" aria-label="Profil wählen">
+    <button type="button" id="tabBusiness" aria-pressed="true">Geschäftlich</button>
+    <button type="button" id="tabPrivat" aria-pressed="false">Privat</button>
+  </div>
+
+  <div class="card" id="card">
+    <div><div class="name" id="cName"></div><div class="role" id="cRole"></div></div>
+    <div></div>
+    <div class="foot"><div class="contact" id="cContact"></div><div class="company" id="cCompany"></div></div>
+  </div>
+
+  <div class="panel" id="empty" hidden>
+    <h2>Noch keine Daten in diesem Profil</h2>
+    <p class="hint">Trag unten deine Angaben ein und tippe auf Speichern. Danach erscheinen hier QR-Code und Weitergabe.</p>
+  </div>
+
+  <div id="filled" hidden style="display:grid;gap:16px">
+    <div class="panel qrbox">
+      <div id="qr" aria-label="QR-Code mit deinen Kontaktdaten"></div>
+      <p class="hint" style="text-align:center">Dein Gegenüber scannt den Code mit der Kamera und speichert den Kontakt. Funktioniert ohne Internet.</p>
+      <button type="button" class="primary block" id="showBtn">QR-Code groß zeigen</button>
+    </div>
+
+    <div class="panel">
+      <h2>Kontakt senden</h2>
+      <button type="button" class="primary block" id="shareBtn">Kontaktdatei teilen …</button>
+      <p class="hint" id="shareHint">Öffnet das Teilen-Menü des iPhones: WhatsApp, Nachrichten, Mail oder AirDrop. Der Empfänger bekommt eine Kontaktdatei und speichert dich mit einem Tipp.</p>
+      <label>Oder als Text an eine Nummer<input id="to" type="tel" inputmode="tel" placeholder="z. B. 0170 1234567"></label>
+      <div class="row">
+        <a class="btn wa grow" id="waLink" target="_blank" rel="noopener" href="https://wa.me/">WhatsApp</a>
+        <a class="btn grow" id="smsLink" href="sms:">SMS</a>
+        <button type="button" class="grow" id="copyText">Text kopieren</button>
+      </div>
+      <p class="hint">Ohne Nummer wählst du den Kontakt in WhatsApp aus. Deutsche Nummern mit 0 am Anfang werden zu +49.</p>
+    </div>
+
+    <div class="panel">
+      <details>
+        <summary>Link für die NFC-Karte</summary>
+        <div style="display:grid;gap:10px">
+          <p class="hint">Diesen Link schreibst du mit einer NFC-App auf deine Karte. Wer die Karte antippt, sieht deine Kontaktseite mit dem Knopf „Kontakt speichern“. Die Daten stecken im Link selbst und liegen auf keinem Server.</p>
+          <pre id="link"></pre>
+          <div class="row" style="justify-content:space-between"><span class="meta" id="linkSize"></span><button type="button" id="copyLink">Link kopieren</button></div>
+          <a class="btn" id="openLink" target="_blank" rel="noopener" href="k/">Kontaktseite ansehen</a>
+          <p class="hint">Nach jeder Änderung deiner Daten ändert sich der Link. Dann die Karte neu beschreiben.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <form class="panel" id="form" autocomplete="off">
+    <details id="editBox">
+      <summary id="editTitle">Daten bearbeiten</summary>
+      <div style="display:grid;gap:14px">
+        <div class="fields">
+          <label>Vorname<input id="vorname"></label>
+          <label>Nachname<input id="nachname"></label>
+          <label>Position<input id="titel"></label>
+          <label>Firma<input id="firma"></label>
+          <label>Telefon<input id="tel" type="tel"></label>
+          <label>Mobil<input id="mobil" type="tel"></label>
+          <label class="full">E-Mail<input id="email" type="email" autocapitalize="off"></label>
+          <label class="full">Website<input id="web" type="url" autocapitalize="off" placeholder="https://"></label>
+          <label>Straße &amp; Nr.<input id="strasse"></label>
+          <label>PLZ &amp; Ort<input id="ort"></label>
+          <label class="full">Notiz (nicht im NFC-Link)<textarea id="notiz"></textarea></label>
+        </div>
+        <button type="submit" class="primary" id="save">Speichern</button>
+        <p class="hint">Deine Daten bleiben nur auf diesem Gerät. Sie werden nirgendwo hochgeladen.</p>
+      </div>
+    </details>
+  </form>
+</div>
+
+<div id="show" hidden role="dialog" aria-label="QR-Code zum Teilen">
+  <div class="who" id="showName"></div>
+  <div class="big" id="showQr"></div>
+  <p>Mit der Handy-Kamera scannen, um den Kontakt zu speichern.</p>
+  <button type="button" id="showClose">Schließen</button>
+</div>
+
+<script src="qrcode.js"></script>
+<script src="vc.js"></script>
+<script>
+(function(){
+  var KEY='visitenkarte-v1';
+  var $=function(id){return document.getElementById(id)};
+  var data={business:{},privat:{}}, cur='business', dirty=false;
+
+  try{var s=localStorage.getItem(KEY);if(s){var p=JSON.parse(s);data={business:p.business||{},privat:p.privat||{}};cur=p.cur==='privat'?'privat':'business'}}catch(e){}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify({business:data.business,privat:data.privat,cur:cur}));return true}catch(e){return false}}
+  function readForm(){var d={};VC.IDS.forEach(function(k){d[k]=$(k).value.trim()});return d}
+  function fillForm(d){VC.IDS.forEach(function(k){$(k).value=(d&&d[k])||''})}
+  function setStatus(t,ok){$('status').textContent=t;$('status').className='status'+(ok?' ok':'')}
+  function current(){return dirty?readForm():(data[cur]||{})}
+
+  function links(){
+    var t=VC.message(current()), n=VC.intl($('to').value);
+    $('waLink').href='https://wa.me/'+n+'?text='+encodeURIComponent(t);
+    $('smsLink').href='sms:'+(n?'+'+n:'')+'&body='+encodeURIComponent(t);
+  }
+  function render(){
+    var d=current();
+    $('tabBusiness').setAttribute('aria-pressed',cur==='business');
+    $('tabPrivat').setAttribute('aria-pressed',cur==='privat');
+    $('editTitle').textContent='Daten bearbeiten ('+(cur==='privat'?'Privat':'Geschäftlich')+')';
+    $('card').className='card'+(cur==='privat'?' privat':'');
+    $('cName').textContent=VC.fullName(d)||'Dein Name';
+    $('cRole').textContent=d.titel||'';
+    $('cCompany').textContent=d.firma||'';
+    var c=$('cContact');c.textContent='';
+    [['T',d.tel],['M',d.mobil],['@',d.email],['W',(d.web||'').replace(/^https?:\/\//,'')],['A',[d.strasse,d.ort].filter(Boolean).join(', ')]]
+      .forEach(function(x){if(!x[1])return;var sp=document.createElement('span'),b=document.createElement('b');b.textContent=x[0];sp.append(b,x[1]);c.append(sp)});
+    var ok=VC.has(d);
+    $('empty').hidden=ok;$('filled').hidden=!ok;
+    if(!ok){$('editBox').open=true;return}
+    try{$('qr').innerHTML=VC.qrSvg(VC.vcard(d,cur))}catch(e){$('qr').textContent='Zu viele Daten für einen QR-Code.'}
+    var url=new URL('k/',location.href);url.hash=VC.encode(d,cur);
+    $('link').textContent=url.href;$('openLink').href=url.href;
+    $('linkSize').textContent=new TextEncoder().encode(url.href).length+' Bytes';
+    links();
+  }
+  function switchTo(k){if(dirty)data[cur]=readForm();cur=k;dirty=false;persist();fillForm(data[cur]);setStatus('');render()}
+
+  $('tabBusiness').addEventListener('click',function(){switchTo('business')});
+  $('tabPrivat').addEventListener('click',function(){switchTo('privat')});
+  $('form').addEventListener('input',function(){dirty=true;render();setStatus('Nicht gespeichert')});
+  $('to').addEventListener('input',links);
+  $('form').addEventListener('submit',function(e){e.preventDefault();
+    data[cur]=readForm();dirty=false;render();
+    if(persist()){setStatus('Gespeichert',true);$('editBox').open=false}
+    else setStatus('Speichern nicht möglich (privater Modus?)')});
+
+  function copyBtn(btn,getText,label){btn.addEventListener('click',function(){
+    var done=function(){btn.textContent='Kopiert';setTimeout(function(){btn.textContent=label},1800)};
+    var fail=function(){btn.textContent='Kopieren nicht möglich'};
+    try{navigator.clipboard.writeText(getText()).then(done,fail)}catch(e){fail()}})}
+  copyBtn($('copyText'),function(){return VC.message(current())},'Text kopieren');
+  copyBtn($('copyLink'),function(){return $('link').textContent},'Link kopieren');
+
+  $('shareBtn').addEventListener('click',function(){
+    var d=current(), v=VC.vcard(d,cur), name=VC.fileName(d);
+    var file;try{file=new File([v],name,{type:'text/vcard'})}catch(e){}
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file]}).catch(function(){});return}
+    // Ersatz: Datei herunterladen
+    var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([v],{type:'text/vcard'}));a.download=name;
+    document.body.append(a);a.click();a.remove();
+    $('shareHint').textContent='Dieses Gerät kann Dateien nicht direkt teilen. Die Kontaktdatei wurde stattdessen heruntergeladen.';
+  });
+
+  var lock=null;
+  $('showBtn').addEventListener('click',function(){$('showQr').innerHTML=$('qr').innerHTML;$('showName').textContent=$('cName').textContent;$('show').hidden=false;
+    try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(function(l){lock=l}).catch(function(){})}catch(e){}});
+  $('showClose').addEventListener('click',function(){$('show').hidden=true;try{lock&&lock.release()}catch(e){}});
+
+  fillForm(data[cur]);render();
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
+})();
+</script>
+</body>
+</html>

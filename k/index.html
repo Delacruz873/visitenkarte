@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Kontakt</title>
+<link rel="icon" href="../icon-180.png">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="panel" id="none" hidden>
+    <h2>Keine Kontaktdaten im Link</h2>
+    <p class="hint">Dieser Link ist unvollständig. Bitte die Karte noch einmal antippen oder den QR-Code erneut scannen.</p>
+  </div>
+
+  <div id="main" hidden style="display:grid;gap:16px">
+    <div class="card" id="card">
+      <div><div class="name" id="cName"></div><div class="role" id="cRole"></div></div>
+      <div></div>
+      <div class="foot"><div></div><div class="company" id="cCompany"></div></div>
+    </div>
+    <a class="btn primary block" id="saveBtn" href="#">Kontakt speichern</a>
+    <p class="hint" id="saveHint">Öffnet die Kontaktkarte. Dort auf „Neuen Kontakt erstellen“ tippen.</p>
+    <div class="panel"><ul class="list" id="list"></ul></div>
+  </div>
+</div>
+
+<script src="../vc.js"></script>
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  function show(){
+    var r=VC.decode(location.hash);
+    $('none').hidden=!!r;$('main').hidden=!r;
+    if(!r)return;
+    var d=r.data, name=VC.fullName(d)||d.firma||'Kontakt';
+    document.title=name;
+    $('card').className='card'+(r.kind==='privat'?' privat':'');
+    $('cName').textContent=name;
+    $('cRole').textContent=d.titel||'';
+    $('cCompany').textContent=d.firma||'';
+    var ul=$('list');ul.textContent='';
+    function add(label,text,href){if(!text)return;var li=document.createElement('li'),k=document.createElement('span');k.className='k';k.textContent=label;
+      var v=document.createElement(href?'a':'span');v.textContent=text;if(href){v.href=href;if(/^https?:/.test(href)){v.target='_blank';v.rel='noopener noreferrer'}}
+      li.append(k,v);ul.append(li)}
+    add('Telefon',d.tel,'tel:'+String(d.tel).replace(/[^\d+]/g,''));
+    add('Mobil',d.mobil,'tel:'+String(d.mobil).replace(/[^\d+]/g,''));
+    add('E-Mail',d.email,'mailto:'+d.email);
+    var web=d.web&&(/^https?:\/\//i.test(d.web)?d.web:'https://'+d.web);
+    add('Web',(d.web||'').replace(/^https?:\/\//,''),web);
+    var adr=[d.strasse,d.ort].filter(Boolean).join(', ');
+    add('Adresse',adr,adr?'https://maps.apple.com/?q='+encodeURIComponent(adr):'');
+
+    var v=VC.vcard(d,r.kind), a=$('saveBtn');
+    var ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    if(ios){
+      // iPhone zeigt eine vCard direkt als Kontaktkarte an
+      a.href='data:text/vcard;charset=utf-8,'+encodeURIComponent(v);a.removeAttribute('download');
+    }else{
+      a.href=URL.createObjectURL(new Blob([v],{type:'text/vcard'}));a.download=VC.fileName(d);
+      $('saveHint').textContent='Lädt eine Kontaktdatei herunter. Datei öffnen, um den Kontakt zu speichern.';
+    }
+  }
+  window.addEventListener('hashchange',show);show();
+})();
+</script>
+</body>
+</html>
