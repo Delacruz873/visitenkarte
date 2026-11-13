@@ -77,6 +77,7 @@
         <div class="photoRow">
           <img id="fotoPrev" alt="" hidden>
           <label class="filebtn" for="fotoIn"><span id="fotoLabel">Foto wählen</span><input id="fotoIn" type="file" accept="image/*"></label>
+          <button type="button" id="fotoEdit" hidden>Bild bearbeiten</button>
           <button type="button" id="fotoDel" hidden>Foto entfernen</button>
         </div>
         <p class="hint">Das Foto erscheint auf deiner Karte und in der Kontaktdatei, die du teilst. Im QR-Code und im NFC-Link ist es nicht enthalten.</p>
@@ -100,6 +101,14 @@
   </form>
 </div>
 
+<div id="crop" hidden role="dialog" aria-label="Bild bearbeiten">
+  <div class="cropTitle">Bild bearbeiten</div>
+  <div class="cropStage" id="cropStage"><canvas id="cropCanvas" width="320" height="320"></canvas><div class="cropMask"></div></div>
+  <p>Mit dem Finger verschieben, bis das Gesicht im Kreis liegt.</p>
+  <label class="cropZoom">Vergrößern<input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1"></label>
+  <div class="row"><button type="button" class="grow" id="cropCancel">Abbrechen</button><button type="button" class="primary grow" id="cropOk">Übernehmen</button></div>
+</div>
+
 <div id="show" hidden role="dialog" aria-label="QR-Code zum Teilen">
   <div class="who" id="showName"></div>
   <div class="big" id="showQr"></div>
@@ -113,12 +122,12 @@
 (function(){
   var KEY='visitenkarte-v1';
   var $=function(id){return document.getElementById(id)};
-  var data={business:{},privat:{}}, cur='business', dirty=false, foto='';
+  var data={business:{},privat:{}}, cur='business', dirty=false, ph={foto:'',src:'',crop:null};
 
   try{var s=localStorage.getItem(KEY);if(s){var p=JSON.parse(s);data={business:p.business||{},privat:p.privat||{}};cur=p.cur==='privat'?'privat':'business'}}catch(e){}
   function persist(){try{localStorage.setItem(KEY,JSON.stringify({business:data.business,privat:data.privat,cur:cur}));return true}catch(e){return false}}
-  function readForm(){var d={};VC.IDS.forEach(function(k){d[k]=$(k).value.trim()});if(foto)d.foto=foto;return d}
-  function fillForm(d){VC.IDS.forEach(function(k){$(k).value=(d&&d[k])||''});foto=(d&&d.foto)||'';$('fotoIn').value=''}
+  function readForm(){var d={};VC.IDS.forEach(function(k){d[k]=$(k).value.trim()});if(ph.foto){d.foto=ph.foto;if(ph.src){d.fotoSrc=ph.src;d.fotoCrop=ph.crop}}return d}
+  function fillForm(d){VC.IDS.forEach(function(k){$(k).value=(d&&d[k])||''});ph={foto:(d&&d.foto)||'',src:(d&&d.fotoSrc)||'',crop:(d&&d.fotoCrop)||null};$('fotoIn').value=''}
   function setStatus(t,ok){$('status').textContent=t;$('status').className='status'+(ok?' ok':'')}
   function current(){return dirty?readForm():(data[cur]||{})}
 
@@ -138,7 +147,7 @@
     $('cCompany').textContent=d.firma||'';
     $('cFoto').hidden=!d.foto;if(d.foto)$('cFoto').src=d.foto;
     $('fotoPrev').hidden=!d.foto;if(d.foto)$('fotoPrev').src=d.foto;
-    $('fotoDel').hidden=!d.foto;$('fotoLabel').textContent=d.foto?'Foto ändern':'Foto wählen';
+    $('fotoDel').hidden=!d.foto;$('fotoEdit').hidden=!d.fotoSrc;$('fotoLabel').textContent=d.foto?'Foto ändern':'Foto wählen';
     var c=$('cContact');c.textContent='';
     [['T',d.tel],['M',d.mobil],['@',d.email],['W',(d.web||'').replace(/^https?:\/\//,'')],['A',[d.strasse,d.ort].filter(Boolean).join(', ')]]
       .forEach(function(x){if(!x[1])return;var sp=document.createElement('span'),b=document.createElement('b');b.textContent=x[0];sp.append(b,x[1]);c.append(sp)});
@@ -162,17 +171,48 @@
     if(persist()){setStatus('Gespeichert',true);$('editBox').open=false}
     else setStatus('Speichern nicht möglich (privater Modus?)')});
 
-  // Foto: quadratisch zuschneiden und auf 320 px verkleinern, bleibt nur auf dem Gerät
+  // Foto: auswählen, Ausschnitt verschieben und vergrößern. Alles bleibt auf dem Gerät.
+  var ed={img:null,src:'',cx:.5,cy:.5,z:1}, cv=$('cropCanvas'), cx2=cv.getContext('2d');
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+  function side(){return Math.min(ed.img.naturalWidth,ed.img.naturalHeight)/ed.z}
+  function drawCrop(){
+    var w=ed.img.naturalWidth,h=ed.img.naturalHeight,s=side();
+    ed.cx=clamp(ed.cx,s/2/w,1-s/2/w);ed.cy=clamp(ed.cy,s/2/h,1-s/2/h);
+    cx2.fillStyle='#fff';cx2.fillRect(0,0,320,320);
+    cx2.drawImage(ed.img,ed.cx*w-s/2,ed.cy*h-s/2,s,s,0,0,320,320);
+  }
+  function openCrop(src,crop){
+    var img=new Image();
+    img.onload=function(){ed.img=img;ed.src=src;ed.cx=crop?crop.cx:.5;ed.cy=crop?crop.cy:.5;ed.z=crop?crop.z:1;
+      $('cropZoom').value=ed.z;drawCrop();$('crop').hidden=false};
+    img.onerror=function(){setStatus('Dieses Bild kann nicht gelesen werden')};
+    img.src=src;
+  }
   $('fotoIn').addEventListener('change',function(){
     var f=this.files&&this.files[0];if(!f)return;
     var url=URL.createObjectURL(f), img=new Image();
     img.onload=function(){
-      var s=Math.min(img.naturalWidth,img.naturalHeight), c=document.createElement('canvas');c.width=c.height=320;
-      c.getContext('2d').drawImage(img,(img.naturalWidth-s)/2,(img.naturalHeight-s)/2,s,s,0,0,320,320);
-      URL.revokeObjectURL(url);foto=c.toDataURL('image/jpeg',0.82);dirty=true;render();setStatus('Nicht gespeichert')};
+      // Vorlage auf höchstens 900 px verkleinern, damit sie in den Gerätespeicher passt
+      var k=Math.min(1,900/Math.max(img.naturalWidth,img.naturalHeight)), c=document.createElement('canvas');
+      c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+      openCrop(c.toDataURL('image/jpeg',0.8),null)};
     img.onerror=function(){URL.revokeObjectURL(url);setStatus('Dieses Bild kann nicht gelesen werden')};
-    img.src=url});
-  $('fotoDel').addEventListener('click',function(){foto='';$('fotoIn').value='';dirty=true;render();setStatus('Nicht gespeichert')});
+    img.src=url;this.value=''});
+  $('fotoEdit').addEventListener('click',function(){if(ph.src)openCrop(ph.src,ph.crop)});
+  $('fotoDel').addEventListener('click',function(){ph={foto:'',src:'',crop:null};dirty=true;render();setStatus('Nicht gespeichert')});
+  $('cropZoom').addEventListener('input',function(){ed.z=parseFloat(this.value)||1;drawCrop()});
+  (function(){var last=null,st=$('cropStage');
+    st.addEventListener('pointerdown',function(e){last={x:e.clientX,y:e.clientY};try{st.setPointerCapture(e.pointerId)}catch(_){}});
+    st.addEventListener('pointermove',function(e){if(!last||!ed.img)return;
+      var f=side()/st.getBoundingClientRect().width;
+      ed.cx-=(e.clientX-last.x)*f/ed.img.naturalWidth;ed.cy-=(e.clientY-last.y)*f/ed.img.naturalHeight;
+      last={x:e.clientX,y:e.clientY};drawCrop()});
+    var end=function(){last=null};st.addEventListener('pointerup',end);st.addEventListener('pointercancel',end)})();
+  $('cropCancel').addEventListener('click',function(){$('crop').hidden=true});
+  $('cropOk').addEventListener('click',function(){
+    ph={foto:cv.toDataURL('image/jpeg',0.82),src:ed.src,crop:{cx:ed.cx,cy:ed.cy,z:ed.z}};
+    $('crop').hidden=true;dirty=true;render();setStatus('Nicht gespeichert')});
 
   function copyBtn(btn,getText,label){btn.addEventListener('click',function(){
     var done=function(){btn.textContent='Kopiert';setTimeout(function(){btn.textContent=label},1800)};
