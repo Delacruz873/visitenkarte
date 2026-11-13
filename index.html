@@ -97,6 +97,10 @@
         </div>
         <button type="submit" class="primary" id="save">Speichern</button>
         <p class="hint">Deine Daten bleiben nur auf diesem Gerät. Sie werden nirgendwo hochgeladen.</p>
+        <div id="lockBox" hidden style="display:grid;gap:8px;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" id="lockBtn">Bearbeiten schützen</button>
+          <p class="hint" id="lockHint">Danach lässt sich „Daten bearbeiten“ nur noch mit Face ID, Touch ID oder dem Gerätecode öffnen.</p>
+        </div>
       </div>
     </details>
   </form>
@@ -142,7 +146,7 @@
     var d=current();
     $('tabBusiness').setAttribute('aria-pressed',cur==='business');
     $('tabPrivat').setAttribute('aria-pressed',cur==='privat');
-    $('editTitle').textContent='Daten bearbeiten ('+(cur==='privat'?'Privat':'Geschäftlich')+')';
+    $('editTitle').textContent='Daten bearbeiten ('+(cur==='privat'?'Privat':'Geschäftlich')+')'+(lockId&&!unlocked?' · gesperrt':'');
     $('card').className='card'+(cur==='privat'?' privat':'');
     $('cName').textContent=VC.fullName(d)||'Dein Name';
     $('cRole').textContent=d.titel||'';
@@ -155,7 +159,7 @@
       .forEach(function(x){if(!x[1])return;var sp=document.createElement('span'),b=document.createElement('b');b.textContent=x[0];sp.append(b,x[1]);c.append(sp)});
     var ok=VC.has(d)||!!d.foto;
     $('empty').hidden=ok;$('filled').hidden=!ok;
-    if(!ok){$('editBox').open=true;return}
+    if(!ok){if(!lockId||unlocked)$('editBox').open=true;return}
     try{$('qr').innerHTML=VC.qrSvg(VC.vcard(d,cur))}catch(e){$('qr').textContent='Zu viele Daten für einen QR-Code.'}
     var url=new URL('k/',location.href);url.hash=VC.encode(d,cur);
     $('link').textContent=url.href;$('openLink').href=url.href;
@@ -172,7 +176,7 @@
   if(navigator.contacts&&navigator.contacts.select){$('pick').hidden=false;
     $('pick').addEventListener('click',function(){navigator.contacts.select(['tel'],{multiple:false}).then(function(c){
       var t=c&&c[0]&&c[0].tel&&c[0].tel[0];if(t){$('to').value=t;links()}}).catch(function(){})})}
-  $('form').addEventListener('submit',function(e){e.preventDefault();
+  $('form').addEventListener('submit',function(e){e.preventDefault();if(lockId&&!unlocked)return;
     data[cur]=readForm();dirty=false;render();
     if(persist()){setStatus('Gespeichert',true);$('editBox').open=false}
     else setStatus('Speichern nicht möglich (privater Modus?)')});
@@ -243,7 +247,45 @@
     try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(function(l){lock=l}).catch(function(){})}catch(e){}});
   $('showClose').addEventListener('click',function(){$('show').hidden=true;try{lock&&lock.release()}catch(e){}});
 
-  fillForm(data[cur]);render();
+  // Bearbeiten schützen: Entsperren über das Gerät (Face ID, Touch ID oder Gerätecode) per Passkey
+  var LOCK='visitenkarte-lock', lockId='', unlocked=false;
+  try{lockId=localStorage.getItem(LOCK)||''}catch(e){}
+  function b64(buf){var s='',a=new Uint8Array(buf);for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s)}
+  function unb64(t){var s=atob(t),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a}
+  function rnd(n){var a=new Uint8Array(n);crypto.getRandomValues(a);return a}
+  function lockUi(){
+    $('lockBtn').textContent=lockId?'Schutz ausschalten':'Bearbeiten schützen';
+    $('lockHint').textContent=lockId?'Der Schutz ist an. „Daten bearbeiten“ öffnet sich nur nach dem Entsperren und wird beim Schließen der App wieder gesperrt.'
+      :'Danach lässt sich „Daten bearbeiten“ nur noch mit Face ID, Touch ID oder dem Gerätecode öffnen.';
+    render();
+  }
+  function verify(){
+    return navigator.credentials.get({publicKey:{challenge:rnd(32),timeout:60000,userVerification:'required',
+      allowCredentials:[{type:'public-key',id:unb64(lockId),transports:['internal']}]}}).then(function(c){if(!c)throw new Error('abgebrochen');unlocked=true});
+  }
+  if(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext){
+    $('lockBox').hidden=false;
+    $('lockBtn').addEventListener('click',function(){
+      if(lockId){ // ausschalten: Formular ist nur offen, wenn schon entsperrt wurde
+        lockId='';unlocked=false;try{localStorage.removeItem(LOCK)}catch(e){}lockUi();setStatus('Schutz ausgeschaltet');return}
+      navigator.credentials.create({publicKey:{challenge:rnd(32),rp:{name:'Visitenkarte'},
+        user:{id:rnd(16),name:'Visitenkarte',displayName:'Visitenkarte bearbeiten'},
+        pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},
+        timeout:60000,attestation:'none'}}).then(function(c){
+          lockId=b64(c.rawId);unlocked=true;try{localStorage.setItem(LOCK,lockId)}catch(e){}
+          lockUi();setStatus('Schutz eingeschaltet',true)
+        }).catch(function(){setStatus('Schutz wurde nicht eingeschaltet')});
+    });
+  }else{lockId=''}
+  $('editBox').querySelector('summary').addEventListener('click',function(e){
+    if(!lockId||unlocked||$('editBox').open)return;
+    e.preventDefault();
+    verify().then(function(){$('editBox').open=true;render();setStatus('')}).catch(function(){setStatus('Entsperren abgebrochen')});
+  });
+
+  fillForm(data[cur]);lockUi();
+  if(lockId&&!unlocked)$('editBox').open=false;
   if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
 })();
 </script>
