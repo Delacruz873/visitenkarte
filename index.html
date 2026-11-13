@@ -47,13 +47,14 @@
       <h2>Kontakt senden</h2>
       <button type="button" class="primary block" id="shareBtn">Kontaktdatei teilen …</button>
       <p class="hint" id="shareHint">Öffnet das Teilen-Menü des iPhones: WhatsApp, Nachrichten, Mail oder AirDrop. Der Empfänger bekommt eine Kontaktdatei und speichert dich mit einem Tipp.</p>
-      <label>Oder als Text an eine Nummer<input id="to" type="tel" inputmode="tel" placeholder="z. B. 0170 1234567"></label>
+      <label>Oder als Text senden. Nummer (optional)<input id="to" type="tel" inputmode="tel" placeholder="leer lassen = Kontakt in WhatsApp wählen"></label>
+      <button type="button" id="pick" hidden>Nummer aus meinen Kontakten wählen</button>
       <div class="row">
-        <a class="btn wa grow" id="waLink" target="_blank" rel="noopener" href="https://wa.me/">WhatsApp</a>
+        <a class="btn wa grow" id="waLink" target="_blank" rel="noopener" href="https://wa.me/">WhatsApp: Kontakt wählen</a>
         <a class="btn grow" id="smsLink" href="sms:">SMS</a>
         <button type="button" class="grow" id="copyText">Text kopieren</button>
       </div>
-      <p class="hint">Ohne Nummer wählst du den Kontakt in WhatsApp aus. Deutsche Nummern mit 0 am Anfang werden zu +49.</p>
+      <p class="hint">Ohne Nummer öffnet sich WhatsApp mit deiner Kontaktliste. Dort wählst du den Empfänger aus. Deutsche Nummern mit 0 am Anfang werden zu +49.</p>
     </div>
 
     <div class="panel">
@@ -134,6 +135,7 @@
   function links(){
     var t=VC.message(current()), n=VC.intl($('to').value);
     $('waLink').href='https://wa.me/'+n+'?text='+encodeURIComponent(t);
+    $('waLink').textContent=n?'WhatsApp an diese Nummer':'WhatsApp: Kontakt wählen';
     $('smsLink').href='sms:'+(n?'+'+n:'')+'&body='+encodeURIComponent(t);
   }
   function render(){
@@ -166,6 +168,10 @@
   $('tabPrivat').addEventListener('click',function(){switchTo('privat')});
   $('form').addEventListener('input',function(){dirty=true;render();setStatus('Nicht gespeichert')});
   $('to').addEventListener('input',links);
+  // Kontaktauswahl des Geräts, wo der Browser sie anbietet (iPhone-Safari bietet sie nicht an)
+  if(navigator.contacts&&navigator.contacts.select){$('pick').hidden=false;
+    $('pick').addEventListener('click',function(){navigator.contacts.select(['tel'],{multiple:false}).then(function(c){
+      var t=c&&c[0]&&c[0].tel&&c[0].tel[0];if(t){$('to').value=t;links()}}).catch(function(){})})}
   $('form').addEventListener('submit',function(e){e.preventDefault();
     data[cur]=readForm();dirty=false;render();
     if(persist()){setStatus('Gespeichert',true);$('editBox').open=false}
